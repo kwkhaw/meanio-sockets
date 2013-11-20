@@ -2,14 +2,13 @@
  * Module dependencies.
  */
 var express = require('express'),
-    mongoStore = require('connect-mongo')(express),
     flash = require('connect-flash'),
     helpers = require('view-helpers'),
     config = require('./config');
 
-module.exports = function(app, passport, db) {
-    app.set('showStackError', true);    
-    
+module.exports = function(app, passport, sessionStore, sessionSecret) {
+    app.set('showStackError', true);
+
     //Prettify HTML
     app.locals.pretty = true;
 
@@ -35,11 +34,11 @@ module.exports = function(app, passport, db) {
     app.set('view engine', 'jade');
 
     //Enable jsonp
-    app.enable("jsonp callback");
+    app.enable('jsonp callback');
 
     app.configure(function() {
         //cookieParser should be above session
-        app.use(express.cookieParser());
+        app.use(express.cookieParser(sessionSecret));
 
         //bodyParser should be above methodOverride
         app.use(express.bodyParser());
@@ -47,12 +46,18 @@ module.exports = function(app, passport, db) {
 
         //express/mongo session storage
         app.use(express.session({
-            secret: 'MEAN',
-            store: new mongoStore({
-                db: db.connection.db,
-                collection: 'sessions'
-            })
+            store: sessionStore,
+            key: 'express.sid'
+
         }));
+
+        // app.use(express.session({
+        //     secret: 'MEAN',
+        //     store: new mongoStore({
+        //         db: db.connection.db,
+        //         collection: 'sessions'
+        //     })
+        // }));
 
         //connect flash for flash messages
         app.use(flash());
@@ -67,7 +72,8 @@ module.exports = function(app, passport, db) {
         //routes should be at the last
         app.use(app.router);
 
-        //Assume "not found" in the error msgs is a 404. this is somewhat silly, but valid, you can do whatever you like, set properties, use instanceof etc.
+        //Assume "not found" in the error msgs is a 404. 
+        //this is somewhat silly, but valid, you can do whatever you like, set properties, use instanceof etc.
         app.use(function(err, req, res, next) {
             //Treat as 404
             if (~err.message.indexOf('not found')) return next();
