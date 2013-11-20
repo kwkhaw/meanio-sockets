@@ -21,11 +21,52 @@ var express = require('express'),
 var env = process.env.NODE_ENV = process.env.NODE_ENV || 'development',
     config = require('./config/config'),
     auth = require('./config/middlewares/authorization'),
-    mongoose = require('mongoose');
+    mongoose = require('mongoose'),
+    Schema = mongoose.Schema;
 
 
 //Bootstrap db connection
 var db = mongoose.connect(config.db);
+
+
+
+//Connection to Mongo tail-capped collections
+// var messages = new Schema({
+//     title: String,
+//     author: String,
+//     body: String,
+// }, {
+//     capped: {
+//         size: 1024,
+//         max: 1000,
+//         autoIndexId: true
+//     }
+// });
+
+
+db.connection.on('connected', function() {
+
+
+    // mongoose.connection.db.collection('question', function());
+
+    mongoose.connection.db.collection('messages', function(err, collection) {
+        collection.isCapped(function(err, capped) {
+            if (err) {
+                console.log('Error when detecting capped collection.  Aborting.  Capped collections are necessary for tailed cursors.');
+                process.exit(1);
+            }
+            if (!capped) {
+                console.log(collection.collectionName + ' is not a capped collection. Aborting.  Please use a capped collection for tailable cursors.');
+                process.exit(2);
+            }
+            console.log('Success connecting to messages');
+            // console.log('Success connecting to ' + mongoUrl.protocol + '//' + mongoUrl.hostname + '.');
+            // startIOServer(collection);
+        });
+    });
+
+
+});
 
 // create sessionStore
 var sessionStore = new mongoStore({
