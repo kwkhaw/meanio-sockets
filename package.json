@@ -41,7 +41,8 @@
         "socket.io": "latest",
         "cookie":"latest",
         "connect":"latest",
-        "async": "latest"
+        "async": "latest",
+        "tropo-webapi": "latest"
     },
     "devDependencies": {
         "supertest": "latest",

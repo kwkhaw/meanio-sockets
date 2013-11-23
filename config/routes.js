@@ -1,3 +1,5 @@
+var tropowebapi = require('tropo-webapi');
+
 module.exports = function(app, passport, auth) {
     //User Routes
     var users = require('../app/controllers/users');
@@ -74,5 +76,29 @@ module.exports = function(app, passport, auth) {
     //Home route
     var index = require('../app/controllers/index');
     app.get('/', index.render);
+
+    app.post('/sms', function(req, res){
+      // Create a new instance of the TropoWebAPI object.
+      var tropo = new tropowebapi.TropoWebAPI();
+      // Use the say method https://www.tropo.com/docs/webapi/say.htm
+      var message = req.body['session'].initialText;
+      var callerId = req.body['session'].from.id;
+      var timestamp = req.body['session'].timestamp;
+      console.log(callerId, messsage, timestamp);
+      tropo.say("Welcome to my Tropo Web API node demo.");
+
+      /*
+      collection.insert({data : message, caller : callerId, time : timestamp}, function (err, docs) {
+      });
+      */
+
+      res.send(tropowebapi.TropoJSON(tropo));
+
+      /*
+      if (theSocket) {
+        theSocket.emit('sms', {data : message, caller : callerId, time : timestamp});
+      }
+      */
+    });
 
 };
