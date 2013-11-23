@@ -7,6 +7,7 @@ var express = require('express'),
     http = require('http'),
     connect = require('connect'),
     io = require('socket.io'),
+    async = require('async'),
     passport = require('passport'),
     mongoStore = require('connect-mongo')(express),
     logger = require('mean-logger');
@@ -21,62 +22,20 @@ var express = require('express'),
 var env = process.env.NODE_ENV = process.env.NODE_ENV || 'development',
     config = require('./config/config'),
     auth = require('./config/middlewares/authorization'),
-    mongoose = require('mongoose'),
-    Schema = mongoose.Schema;
+    mongoose = require('mongoose');
 
 
-//Bootstrap db connection
+//Bootstrap db connection and create sessionStore
 var db = mongoose.connect(config.db);
-
-
-
-//Connection to Mongo tail-capped collections
-// var messages = new Schema({
-//     title: String,
-//     author: String,
-//     body: String,
-// }, {
-//     capped: {
-//         size: 1024,
-//         max: 1000,
-//         autoIndexId: true
-//     }
-// });
-
-
-db.connection.on('connected', function() {
-
-
-    // mongoose.connection.db.collection('question', function());
-
-    mongoose.connection.db.collection('messages', function(err, collection) {
-        collection.isCapped(function(err, capped) {
-            if (err) {
-                console.log('Error when detecting capped collection.  Aborting.  Capped collections are necessary for tailed cursors.');
-                process.exit(1);
-            }
-            if (!capped) {
-                console.log(collection.collectionName + ' is not a capped collection. Aborting.  Please use a capped collection for tailable cursors.');
-                process.exit(2);
-            }
-            console.log('Success connecting to messages');
-            // console.log('Success connecting to ' + mongoUrl.protocol + '//' + mongoUrl.hostname + '.');
-            // startIOServer(collection);
-        });
-    });
-
-
-});
-
-// create sessionStore
 var sessionStore = new mongoStore({
     db: db.connection.db,
     collection: 'sessions'
 });
-
 var sessionSecret = 'MEAN';
 
-//Bootstrap models
+
+
+// Bootstrap models
 var models_path = __dirname + '/app/models';
 var walk = function(path) {
     fs.readdirSync(path).forEach(function(file) {
@@ -156,21 +115,43 @@ sio.set('authorization', function(data, accept) {
 sio.sockets.on('connection', function(socket) {
     var hs = socket.handshake;
     console.log('A socket with sessionID ' + hs.sessionID + ' connected.');
+    console.log(hs.session);
+
+
 
     /* NOTE: At this point, you win. You can use hs.sessionID and
      *       hs.session. */
 
-    /* NOTE: This function could end here, and everything would be fine.
-     *       However, I included this additional mechanism that Daniel
-     *       added to keep the session alive by pinging it every 60
-     *       seconds. I don't know how useful this is in the context of
-     *       this demo, considering that the sessions aren't going to
-     *       expire in the near future. So feel free to not include this: */
-    // var intervalID = setInterval(function() {
-    //     hs.session.reload(function() {
-    //         hs.session.touch().save();
-    //     });
-    // }, 60 * 1000);
+    mongoose.connection.db.collection('messages', function(err, collection) {
+        collection.isCapped(function(err, capped) {
+            if (err) {
+                console.log('Error when detecting capped collection.  Aborting.  Capped collections are necessary for tailed cursors.');
+                process.exit(1);
+            }
+            if (!capped) {
+                console.log(collection.collectionName + ' is not a capped collection. Aborting.  Please use a capped collection for tailable cursors.');
+                process.exit(2);
+            }
+            console.log('Success connecting to messages');
+
+            var queue = async.queue(function(message, callback) {
+                setTimeout(function() {
+                    socket.emit('all', message);
+                    callback();// invoke next in queue
+                }, 300); // client cannot receive burst of data, need to delay between message
+            }, 2);
+
+            var stream = collection.find({}, {
+                tailable: true
+            }).stream();
+
+            stream.on('data', function(data) {
+                queue.push(data);
+            });
+
+        });
+    });
+
     socket.on('disconnect', function() {
         console.log('A socket with sessionID ' + hs.sessionID + ' disconnected.');
         // clearInterval(intervalID);

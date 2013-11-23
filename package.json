@@ -40,7 +40,8 @@
         "grunt-env": "latest",
         "socket.io": "latest",
         "cookie":"latest",
-        "connect":"latest"
+        "connect":"latest",
+        "async": "latest"
     },
     "devDependencies": {
         "supertest": "latest",
